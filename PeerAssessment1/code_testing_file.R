@@ -1,0 +1,150 @@
+
+# install required packages
+
+install.packages("lubridate")
+require("lubridate")
+require("plyr")
+require("lattice")
+
+## Set current directory as working directory
+
+WD <- getwd()
+if (!is.null(WD))
+    setwd(WD)
+
+## Pre-process data
+
+unzip("activity.zip")
+data <- read.csv("activity.csv",stringsAsFactor=FALSE)
+
+# change date column to POSIXct POSIXt format
+data$date <- ymd(data$date)
+
+## For part 1
+
+# remove NAs for first part
+
+data_full <- data[!is.na(data$steps),]
+
+# keep date and number of steps added
+
+data_p1 <- ddply(data_full,c("date"),numcolwise(sum))[,c(1,2)] 
+
+## Part 1 (histogram, mean and median of number of steps per day)
+
+# create a histogram of total number of steps taken each day
+
+hist(data_p1$steps,
+     main = "Histogram of the total number of steps taken each day",
+     xlab = "Total number of steps taken each day")
+
+# Calculate the mean number of steps per day
+
+mean(data_p1$steps)
+
+# Calculate the median number of steps per day
+
+median(data_p1$steps)
+
+## Part 2 (average daily activity pattern)
+
+# create dataframe with total steps per interval
+
+data_p2_mean <- ddply(data_full,c("interval"),numcolwise(mean))
+colnames(data_p2_mean) <- c("interval","mean.steps")
+
+plot(data_p2_mean$interval, data_p2_mean$mean.steps, type = "l",
+     main = "Time Series Plot for each 5-minute interval",
+     xlab = "5-minute intervals",
+     ylab = "Average number of steps taken")
+
+# Which interval has the highest average number of steps
+
+data_p2_mean[which.max(data_p2_mean$mean.steps),1]
+
+# ... with the maximum average number of steps:
+
+data_p2_mean[which.max(data_p2_mean$mean.steps),2]
+
+## Part 3 (inputing missing values)
+
+# Number of all missing values in the dataset
+
+sum(is.na(data$steps))
+
+# Fill in the missing values, using mean number of steps for that interval for missing values.
+
+# first merge the original data set with the one that holds means for each interval
+
+data_p3.missing <- merge(data,data_p2_mean,by="interval")
+
+# sort by date and interval
+
+data_p3.missing <- data_p3.missing[with(data_p3.missing,order(date,interval)),]
+
+# replace missing values with the mean for that interval and save it as integer (round)
+
+data_p3.missing$steps[is.na(data_p3.missing$steps)] <- round(data_p3.missing$mean.steps[is.na(data_p3.missing$steps)], digits=0)
+
+data_p3 <- data_p3.missing[, c(2,3,1)]
+
+# create a histogram so we can compare it with the one from part 1
+
+data_p3_hist <- ddply(data_p3,c("date"),numcolwise(sum))[,c(1,2)]
+
+hist(data_p3_hist$steps,
+     main = "Histogram of the total number of steps taken each day (NA replaced)",
+     xlab = "Total number of steps taken each day")
+
+# mean number of steps per day
+
+mean(data_p3_hist$steps)
+
+# median number of steps per day
+
+median(data_p3_hist$steps)
+
+# Side-by-side comparison of the two histograms:
+
+par(mfrow = c(1, 2))
+
+hist(data_p1$steps,
+     ylim = c(0,35),
+     main = "Histogram for data set with NAs",
+     xlab = "Total number of steps taken each day")
+
+hist(data_p3_hist$steps,
+     ylim = c(0,35),
+     main = "Histogram for data set without NAs",
+     xlab = "Total number of steps taken each day")
+
+# The Mean is equal to the estimates from part one of the assignment, since we only added mean values to data set.
+
+# The Median is slightly lower when compared to the first part of the assignment.
+
+# The histogram shows an over all very similar shape of columns as in part 1 but with higher frequency due to the NA being replaced in the new data set.
+
+## Part 4 - Are there differences in activity patterns between weekdays and weekends?
+
+# create a new data set
+
+data_p4 <- data_p3
+
+# create a new factor with the names of the days for all dates in the data set
+
+data_p4$day_of_week <- factor(format(data_p4$date, "%A"))
+
+# we now replace  the levels with either weekday or weekend
+
+levels(data_p4$day_of_week) <- list(
+    weekday = c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"),
+    weekend = c("Saturday", "Sunday"))
+
+data_p4_mean <- ddply(data_p4,c("interval","day_of_week"),numcolwise(mean))
+colnames(data_p4_mean) <- c("interval","day_of_week","mean.steps")
+
+xyplot(data_p4_mean$mean.steps ~ data_p4_mean$interval | data_p4_mean$day_of_week,
+       layout = c(1, 2),
+       type = "l",
+       xlab = "Interval", 
+       ylab = "Number of steps")
